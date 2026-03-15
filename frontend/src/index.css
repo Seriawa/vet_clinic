@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-['Inter'] m-0;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  .service-title {
+    @apply text-[128px] font-extrabold text-[#0E1E20] leading-[155px] tracking-tight;
+    text-shadow: 4px 4px 0px rgba(0,0,0,0.1);
+  }
+  
+  .search-box {
+    @apply bg-[#428B94] rounded-2xl px-6 py-3 text-[32px] font-semibold text-[#0E1E20] flex items-center gap-4;
+    box-shadow: 0 10px 0 rgba(0,0,0,0.1);
+  }
+  
+  .city-card {
+    @apply bg-[#428B94] rounded-2xl px-8 py-4 text-[48px] font-semibold text-[#0E1E20] flex items-center justify-between;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+  }
+  
+  .city-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 0 rgba(0,0,0,0.1);
+  }
+  
+  .city-card.error {
+    @apply bg-[#BB4B3E];
+  }
+  
+  .city-card.success {
+    @apply bg-[#858D3F];
+  }
+  
+  .checkbox {
+    @apply w-12 h-12 border-2 border-[#0E1E20] rounded-lg bg-transparent flex items-center justify-center cursor-pointer;
+  }
+  
+  .checkbox.checked {
+    @apply bg-[#0E1E20] relative;
+  }
+  
+  .checkbox.checked::after {
+    content: '';
+    @apply absolute w-3 h-6 border-r-2 border-b-2 border-white transform rotate-45 -translate-y-1;
+  }
+}

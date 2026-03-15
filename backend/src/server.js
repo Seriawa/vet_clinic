@@ -1,6 +1,8 @@
 // backend/src/server.js
 const express = require('express');
 const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
@@ -11,8 +13,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Подключаем конфигурацию БД для проверки
+// DB + модели + мидлвары
 const db = require('./config/database');
+const userModel = require('./models/userModel');
+const animalModel = require('./models/animalModel');
+const { auth, requireAdmin } = require('./middleware/auth');
 
 // Базовый маршрут для проверки
 app.get('/api/health', (req, res) => {
@@ -21,6 +26,88 @@ app.get('/api/health', (req, res) => {
     message: 'Server is running',
     timestamp: new Date().toISOString()
   });
+});
+
+// Вход
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email и пароль обязательны' });
+  }
+
+  try {
+    const user = await userModel.findByEmail(email);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Неверный email или пароль' });
+    }
+
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) {
+      return res.status(401).json({ success: false, message: 'Неверный email или пароль' });
+    }
+
+    await userModel.updateLastLogin(user.id);
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
+    );
+
+    const { password_hash, ...safeUser } = user;
+
+    res.json({ success: true, token, user: safeUser });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, message: 'Ошибка сервера' });
+  }
+});
+
+// Регистрация
+app.post('/api/auth/register', async (req, res) => {
+  const { name, email, phone, password } = req.body || {};
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ success: false, message: 'Имя, email и пароль обязательны' });
+  }
+
+  try {
+    const existing = await userModel.findByEmail(email);
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'Пользователь с таким email уже существует' });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+    const newUser = await userModel.create({ name, email, phone, password_hash, role: 'guest' });
+
+    const token = jwt.sign(
+      { id: newUser.id, role: newUser.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
+    );
+
+    res.status(201).json({ success: true, token, user: newUser });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ success: false, message: 'Ошибка сервера' });
+  }
+});
+
+// Профиль по токену
+app.get('/api/auth/me', auth, async (req, res) => {
+  try {
+    const user = await userModel.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
+    }
+    res.json({
+      success: true,
+      user,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Ошибка сервера' });
+  }
 });
 
 // Маршрут для проверки подключения к БД
@@ -68,11 +155,6 @@ app.get('/api/tables', async (req, res) => {
     });
   }
 });
-// backend/src/server.js - добавьте перед app.listen()
-
-// =============================================
-// ТЕСТОВЫЕ ЭНДПОИНТЫ ДЛЯ ПРОВЕРКИ БД
-// =============================================
 
 // Получить всех пользователей
 app.get('/api/test/users', async (req, res) => {
@@ -106,128 +188,346 @@ app.get('/api/test/animals', async (req, res) => {
     }
 });
 
-// Получить все визиты
+// Получить все визиты (тестовый эндпоинт)
 app.get('/api/test/visits', async (req, res) => {
-    try {
-        const result = await db.query(`
-            SELECT v.*, a.name as animal_name, u.name as veterinarian_name 
-            FROM visits v 
-            LEFT JOIN animals a ON v.animal_id = a.id
-            LEFT JOIN users u ON v.veterinarian_id = u.id
-        `);
-        res.json({ 
-            success: true, 
-            count: result.rows.length,
-            data: result.rows 
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+  try {
+    const result = await db.query(`
+      SELECT v.*, a.name as animal_name, u.name as veterinarian_name 
+      FROM visits v 
+      LEFT JOIN animals a ON v.animal_id = a.id
+      LEFT JOIN users u ON v.veterinarian_id = u.id
+      ORDER BY v.visit_date DESC
+    `);
+    res.json({ 
+      success: true, 
+      count: result.rows.length,
+      data: result.rows 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Список животных
+app.get('/api/animals', auth, async (req, res) => {
+  try {
+    const animals = await animalModel.findAll();
+    res.json({ success: true, data: animals });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Не удалось получить животных', error: error.message });
+  }
+});
+
+// Конкретное животное
+app.get('/api/animals/:id', auth, async (req, res) => {
+  try {
+    const animal = await animalModel.findById(req.params.id);
+    if (!animal) {
+      return res.status(404).json({ success: false, message: 'Животное не найдено' });
     }
+    res.json({ success: true, data: animal });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Не удалось получить животное', error: error.message });
+  }
 });
 
 // СОЗДАНИЕ (Create) - добавить животное
-app.post('/api/test/animals', async (req, res) => {
+app.post('/api/animals', auth, requireAdmin, async (req, res) => {
     try {
-        const { name, species, owner_name, owner_phone } = req.body;
-        
-        const result = await db.query(`
-            INSERT INTO animals (name, species, owner_name, owner_phone, created_by)
-            VALUES ($1, $2, $3, $4, 1)
-            RETURNING *
-        `, [name, species, owner_name, owner_phone]);
-        
-        res.json({ 
-            success: true, 
-            message: 'Животное создано',
-            data: result.rows[0] 
-        });
+        const created = await animalModel.create(req.body, req.user.id);
+        res.status(201).json({ success: true, message: 'Животное создано', data: created });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
 // ОБНОВЛЕНИЕ (Update) - обновить животное
-app.put('/api/test/animals/:id', async (req, res) => {
+app.put('/api/animals/:id', auth, requireAdmin, async (req, res) => {
     try {
-        const { id } = req.params;
-        const { name, species, owner_name, owner_phone } = req.body;
-        
-        const result = await db.query(`
-            UPDATE animals 
-            SET name = $1, species = $2, owner_name = $3, owner_phone = $4,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $5
-            RETURNING *
-        `, [name, species, owner_name, owner_phone, id]);
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Животное не найдено' });
+        const updated = await animalModel.update(req.params.id, req.body, req.user.id);
+        if (!updated) {
+          return res.status(404).json({ success: false, message: 'Животное не найдено' });
         }
-        
-        res.json({ 
-            success: true, 
-            message: 'Животное обновлено',
-            data: result.rows[0] 
-        });
+        res.json({ success: true, message: 'Животное обновлено', data: updated });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
 // УДАЛЕНИЕ (Delete) - удалить животное
-app.delete('/api/test/animals/:id', async (req, res) => {
+app.delete('/api/animals/:id', auth, requireAdmin, async (req, res) => {
     try {
-        const { id } = req.params;
-        
-        const result = await db.query('DELETE FROM animals WHERE id = $1 RETURNING id', [id]);
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Животное не найдено' });
+        const deleted = await animalModel.delete(req.params.id);
+        if (!deleted) {
+          return res.status(404).json({ success: false, message: 'Животное не найдено' });
         }
-        
-        res.json({ 
-            success: true, 
-            message: 'Животное удалено',
-            id: result.rows[0].id 
-        });
+        res.json({ success: true, message: 'Животное удалено', id: deleted.id });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// ПОЛУЧИТЬ КОНКРЕТНОЕ ЖИВОТНОЕ
-app.get('/api/test/animals/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        const result = await db.query(`
-            SELECT a.*, 
-                   COUNT(v.id) as visits_count,
-                   json_agg(
-                       json_build_object(
-                           'id', v.id,
-                           'date', v.visit_date,
-                           'reason', v.reason
-                       ) ORDER BY v.visit_date DESC
-                   ) FILTER (WHERE v.id IS NOT NULL) as visits
-            FROM animals a
-            LEFT JOIN visits v ON a.id = v.animal_id
-            WHERE a.id = $1
-            GROUP BY a.id
-        `, [id]);
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Животное не найдено' });
-        }
-        
-        res.json({ 
-            success: true, 
-            data: result.rows[0] 
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
+// Список всех визитов (для страницы "Визиты")
+app.get('/api/visits', auth, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        v.*,
+        a.name AS animal_name,
+        a.species AS animal_species,
+        u.name AS veterinarian_name
+      FROM visits v
+      LEFT JOIN animals a ON v.animal_id = a.id
+      LEFT JOIN users u ON v.veterinarian_id = u.id
+      ORDER BY v.visit_date DESC, v.created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Не удалось получить визиты', error: error.message });
+  }
 });
+
+// Получить один визит по id (деталка по визиту, при необходимости)
+app.get('/api/visits/:id', auth, async (req, res) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT 
+        v.*,
+        a.name AS animal_name,
+        a.species AS animal_species,
+        u.name AS veterinarian_name
+      FROM visits v
+      LEFT JOIN animals a ON v.animal_id = a.id
+      LEFT JOIN users u ON v.veterinarian_id = u.id
+      WHERE v.id = $1
+    `,
+      [req.params.id],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ success: false, message: 'Визит не найден' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Не удалось получить визит', error: error.message });
+  }
+});
+
+// Создание визита (страницы "Визиты"/"Календарь" при добавлении записи)
+app.post('/api/visits', auth, requireAdmin, async (req, res) => {
+  const {
+    animal_id,
+    visit_date,
+    reason,
+    diagnosis,
+    treatment,
+    status,
+  } = req.body || {};
+
+  if (!animal_id || !visit_date || !reason) {
+    return res.status(400).json({
+      success: false,
+      message: 'animal_id, visit_date и reason обязательны',
+    });
+  }
+
+  try {
+    const result = await db.query(
+      `
+      INSERT INTO visits (
+        animal_id,
+        visit_date,
+        reason,
+        diagnosis,
+        treatment,
+        status,
+        veterinarian_id
+      )
+      VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'planned'), $7)
+      RETURNING *
+    `,
+      [
+        animal_id,
+        visit_date,
+        reason,
+        diagnosis || null,
+        treatment || null,
+        status || null,
+        req.user.id,
+      ],
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Визит создан',
+      data: result.rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Не удалось создать визит', error: error.message });
+  }
+});
+
+// Обновление визита
+app.put('/api/visits/:id', auth, requireAdmin, async (req, res) => {
+  const {
+    visit_date,
+    reason,
+    diagnosis,
+    treatment,
+    status,
+  } = req.body || {};
+
+  try {
+    const result = await db.query(
+      `
+      UPDATE visits
+      SET
+        visit_date = COALESCE($1, visit_date),
+        reason = COALESCE($2, reason),
+        diagnosis = COALESCE($3, diagnosis),
+        treatment = COALESCE($4, treatment),
+        status = COALESCE($5, status),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
+      RETURNING *
+    `,
+      [
+        visit_date || null,
+        reason || null,
+        diagnosis || null,
+        treatment || null,
+        status || null,
+        req.params.id,
+      ],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ success: false, message: 'Визит не найден' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Визит обновлён',
+      data: result.rows[0],
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Не удалось обновить визит', error: error.message });
+  }
+});
+
+// Удаление визита
+app.delete('/api/visits/:id', auth, requireAdmin, async (req, res) => {
+  try {
+    const result = await db.query(
+      `
+      DELETE FROM visits
+      WHERE id = $1
+      RETURNING id
+    `,
+      [req.params.id],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ success: false, message: 'Визит не найден' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Визит удалён',
+      id: result.rows[0].id,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Не удалось удалить визит', error: error.message });
+  }
+});
+
+// Календарь визитов (для страницы "Календарь")
+// Параметры: from, to (ISO-датa), необязательные
+app.get('/api/calendar/visits', auth, async (req, res) => {
+  const { from, to } = req.query;
+
+  const conditions = [];
+  const values = [];
+
+  if (from) {
+    values.push(from);
+    conditions.push(`v.visit_date >= $${values.length}`);
+  }
+
+  if (to) {
+    values.push(to);
+    conditions.push(`v.visit_date <= $${values.length}`);
+  }
+
+  const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  try {
+    const result = await db.query(
+      `
+      SELECT 
+        v.id,
+        v.visit_date,
+        v.status,
+        v.reason,
+        a.id AS animal_id,
+        a.name AS animal_name,
+        a.species AS animal_species
+      FROM visits v
+      LEFT JOIN animals a ON v.animal_id = a.id
+      ${whereSql}
+      ORDER BY v.visit_date ASC
+    `,
+      values,
+    );
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Не удалось получить календарь визитов', error: error.message });
+  }
+});
+
+
+app.get('/api/statistics/summary', auth, async (req, res) => {
+  try {
+    const [animalsCount, visitsCount, visitsByStatus, animalsBySpecies] = await Promise.all([
+      db.query('SELECT COUNT(*)::int AS total_animals FROM animals'),
+      db.query('SELECT COUNT(*)::int AS total_visits FROM visits'),
+      db.query(`
+        SELECT COALESCE(status, 'unknown') AS status, COUNT(*)::int AS count
+        FROM visits
+        GROUP BY COALESCE(status, 'unknown')
+      `),
+      db.query(`
+        SELECT COALESCE(species, 'unknown') AS species, COUNT(*)::int AS count
+        FROM animals
+        GROUP BY COALESCE(species, 'unknown')
+      `),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        total_animals: animalsCount.rows[0]?.total_animals ?? 0,
+        total_visits: visitsCount.rows[0]?.total_visits ?? 0,
+        visits_by_status: visitsByStatus.rows,
+        animals_by_species: animalsBySpecies.rows,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Не удалось получить статистику', error: error.message });
+  }
+});
+
+// старые тестовые /api/test/* можно оставить для отладки при необходимости
 // Запуск сервера
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
