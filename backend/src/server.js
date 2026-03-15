@@ -463,6 +463,63 @@ app.put('/api/visits/:id', auth, requireAdmin, async (req, res) => {
   }
 });
 
+// Обновление статуса животного (PATCH запрос)
+app.patch('/api/animals/:id/status', auth, async (req, res) => {
+  const { id } = req.params
+  const { status } = req.body
+
+  console.log(`🔄 Обновление статуса животного ${id} на ${status}`)
+
+  // Проверка прав (только admin/editor могут менять статус)
+  if (req.user.role !== 'admin' && req.user.role !== 'editor') {
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Недостаточно прав для изменения статуса' 
+    })
+  }
+
+  // Валидация статуса
+  const validStatuses = ['active', 'treatment', 'healthy', 'observation', 'critical', 'inactive']
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Некорректный статус' 
+    })
+  }
+
+  try {
+    const result = await db.query(
+      `UPDATE animals 
+       SET status = $1, updated_at = CURRENT_TIMESTAMP, updated_by = $2
+       WHERE id = $3 
+       RETURNING *`,
+      [status, req.user.id, id]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Животное не найдено' 
+      })
+    }
+
+    console.log(`✅ Статус животного ${id} обновлен на ${status}`)
+
+    res.json({ 
+      success: true, 
+      message: 'Статус обновлен', 
+      data: result.rows[0] 
+    })
+  } catch (error) {
+    console.error('❌ Ошибка при обновлении статуса:', error)
+    res.status(500).json({ 
+      success: false, 
+      message: 'Ошибка при обновлении статуса',
+      error: error.message 
+    })
+  }
+})
+
 // Удаление визита
 app.delete('/api/visits/:id', auth, requireAdmin, async (req, res) => {
   try {

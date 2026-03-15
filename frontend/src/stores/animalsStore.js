@@ -98,6 +98,27 @@ export const useAnimalsStore = defineStore('animals', () => {
     }
   }
 
+  const updateAnimalStatus = async (id, status) => {
+    error.value = ''
+    try {
+      const res = await axios.patch(`${API_URL}/animals/${id}/status`, { status }, {
+        headers: userStore.withAuthHeaders()
+      })
+      
+      if (res.data?.success) {
+        const index = animals.value.findIndex(a => a.id === id)
+        if (index !== -1) {
+          animals.value[index].status = status
+        }
+        return true
+      }
+      return false
+    } catch (e) {
+      error.value = e.response?.data?.message || 'Не удалось обновить статус'
+      return false
+    }
+  }
+
   const deleteAnimal = async (id) => {
     error.value = ''
     try {
@@ -121,6 +142,7 @@ export const useAnimalsStore = defineStore('animals', () => {
     getAnimalById,
     addAnimal,
     updateAnimal,
+    updateAnimalStatus,
     deleteAnimal
   }
 })

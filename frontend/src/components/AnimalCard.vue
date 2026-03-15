@@ -21,12 +21,47 @@
           </div>
         </div>
         
-        <div class="relative">
-          <div class="absolute inset-0 bg-current rounded-full blur opacity-0 group-hover:opacity-30 transition-opacity"
-               :class="statusColor"></div>
-          <span class="status-badge relative" :class="statusClasses">
-            {{ getStatusText(animal.status) }}
-          </span>
+        <div class="relative" v-click-outside="() => (showStatusMenu = false)">
+          <div 
+            class="flex items-center space-x-2 cursor-pointer" 
+            @click="userStore.canEdit ? showStatusMenu = !showStatusMenu : null"
+          >
+            <div class="absolute inset-0 bg-current rounded-full blur opacity-0 group-hover:opacity-30 transition-opacity"
+                 :class="statusColor"></div>
+            <span class="status-badge relative" :class="statusClasses">
+              {{ getStatusText(animal.status) }}
+            </span>
+            <svg 
+              v-if="userStore.canEdit" 
+              class="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+
+          <div 
+            v-if="showStatusMenu && userStore.canEdit"
+            class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1"
+          >
+            <div 
+              v-for="option in STATUS_OPTIONS" 
+              :key="option.value"
+              @click="updateStatus(option.value)"
+              class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center space-x-2"
+            >
+              <span :class="['w-2 h-2 rounded-full', getStatusDotClass(option.value)]"></span>
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ option.label }}</span>
+              <span v-if="option.value === animal.status" class="ml-auto text-primary-600">✓</span>
+            </div>
+            
+            <!-- Индикатор загрузки -->
+            <div v-if="updating" class="px-4 py-2 text-sm text-primary-600">
+              Сохранение...
+            </div>
+          </div>
         </div>
       </div>
       
@@ -101,7 +136,13 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useUserStore } from '../stores/userStore'
-import { getSpeciesName, getStatusText, getSpeciesEmoji } from '../utils/animalLabels'
+import { useAnimalsStore } from '../stores/animalsStore'
+import { 
+  getSpeciesName, 
+  getStatusText, 
+  getSpeciesEmoji,
+  STATUS_OPTIONS 
+} from '../utils/animalLabels'
 
 const props = defineProps({
   animal: {
@@ -110,10 +151,27 @@ const props = defineProps({
   }
 })
 
-defineEmits(['edit', 'delete'])
+const emit = defineEmits(['edit', 'delete', 'status-updated'])
 
 const isHovered = ref(false)
+const showStatusMenu = ref(false)
+const updating = ref(false)
 const userStore = useUserStore()
+const animalsStore = useAnimalsStore()
+
+const vClickOutside = {
+  mounted(el, binding) {
+    el.clickOutsideEvent = (event) => {
+      if (!(el === event.target || el.contains(event.target))) {
+        binding.value(event)
+      }
+    }
+    document.addEventListener('click', el.clickOutsideEvent)
+  },
+  unmounted(el) {
+    document.removeEventListener('click', el.clickOutsideEvent)
+  }
+}
 
 const statusClasses = computed(() => {
   const classes = {
@@ -138,4 +196,43 @@ const statusColor = computed(() => {
   }
   return colors[props.animal.status] || colors.active
 })
+
+const getStatusDotClass = (status) => {
+  const colors = {
+    active: 'bg-green-500',
+    treatment: 'bg-yellow-500',
+    healthy: 'bg-blue-500',
+    observation: 'bg-purple-500',
+    critical: 'bg-red-500',
+    inactive: 'bg-gray-500'
+  }
+  return colors[status] || 'bg-gray-500'
+}
+
+const updateStatus = async (newStatus) => {
+  if (newStatus === props.animal.status) {
+    showStatusMenu.value = false
+    return
+  }
+  
+  updating.value = true
+  
+  try {
+    const success = await animalsStore.updateAnimalStatus(props.animal.id, newStatus)
+    
+    if (success) {
+      props.animal.status = newStatus
+      showStatusMenu.value = false
+      emit('status-updated', { id: props.animal.id, status: newStatus })
+      
+      console.log('✅ Статус обновлен')
+    } else {
+      console.error('❌ Не удалось обновить статус')
+    }
+  } catch (error) {
+    console.error('❌ Ошибка при обновлении статуса:', error)
+  } finally {
+    updating.value = false
+  }
+}
 </script>
