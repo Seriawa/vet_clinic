@@ -313,14 +313,23 @@
             >
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Статус</label>
-            <select
-              v-model="newVisit.status"
+            <label class="block text-sm font-medium text-gray-700 mb-1">Симптомы</label>
+            <input
+              v-model="newVisit.symptoms"
+              type="text"
+              placeholder="Не обязательно"
               class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
             >
-              <option value="planned">Запланирован</option>
-              <option value="done">Завершён</option>
-              <option value="cancelled">Отменён</option>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Тип визита</label>
+            <select
+              v-model="newVisit.visit_type"
+              class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="regular">Обычный</option>
+              <option value="emergency">Срочный</option>
+              <option value="checkup">Профосмотр</option>
             </select>
           </div>
           <div v-if="visitsStore.error" class="text-sm text-red-600">
@@ -368,7 +377,8 @@ const newVisit = ref({
   reason: '',
   diagnosis: '',
   treatment: '',
-  status: 'planned'
+  symptoms: '',
+  visit_type: 'regular'
 })
 
 onMounted(async () => {
@@ -453,7 +463,8 @@ const openAddVisitModal = () => {
   newVisit.value.reason = ''
   newVisit.value.diagnosis = ''
   newVisit.value.treatment = ''
-  newVisit.value.status = 'planned'
+  newVisit.value.symptoms = ''
+  newVisit.value.visit_type = 'regular'
   showAddVisitModal.value = true
 }
 
@@ -461,16 +472,17 @@ const submitNewVisit = async () => {
   if (!animal.value) return
   const payload = {
     animal_id: animal.value.id,
-    visit_date: new Date(newVisit.value.visit_date).toISOString(),
+    visit_datetime: new Date(newVisit.value.visit_date).toISOString(),
+    visit_type: newVisit.value.visit_type || 'regular',
     reason: newVisit.value.reason.trim(),
     diagnosis: newVisit.value.diagnosis?.trim() || null,
     treatment: newVisit.value.treatment?.trim() || null,
-    status: newVisit.value.status || 'planned'
+    symptoms: newVisit.value.symptoms?.trim() || null
   }
   const created = await visitsStore.addVisit(payload)
   if (created) {
     showAddVisitModal.value = false
-    newVisit.value = { visit_date: '', reason: '', diagnosis: '', treatment: '', status: 'planned' }
+    newVisit.value = { visit_date: '', reason: '', diagnosis: '', treatment: '', symptoms: '', visit_type: 'regular' }
     const updated = await animalsStore.fetchAnimalById(animal.value.id)
     if (updated) animal.value = updated
   }

@@ -319,21 +319,41 @@ app.get('/api/visits/:id', auth, async (req, res) => {
   }
 });
 
-// Создание визита (страницы "Визиты"/"Календарь" при добавлении записи)
+// Создание визита (таблица: visit_date DATE, visit_time TIME — оба NOT NULL; visit_type, reason и др.)
 app.post('/api/visits', auth, requireAdmin, async (req, res) => {
   const {
     animal_id,
     visit_date,
+    visit_time,
+    visit_datetime,
+    visit_type,
     reason,
     diagnosis,
     treatment,
-    status,
+    symptoms,
   } = req.body || {};
 
-  if (!animal_id || !visit_date || !reason) {
+  if (!animal_id || !reason) {
     return res.status(400).json({
       success: false,
-      message: 'animal_id, visit_date и reason обязательны',
+      message: 'animal_id и reason обязательны',
+    });
+  }
+
+  let dateVal = visit_date;
+  let timeVal = visit_time;
+  if (visit_datetime) {
+    const d = new Date(visit_datetime);
+    if (isNaN(d.getTime())) {
+      return res.status(400).json({ success: false, message: 'Некорректная дата/время визита' });
+    }
+    dateVal = d.toISOString().slice(0, 10);
+    timeVal = d.toTimeString().slice(0, 8);
+  }
+  if (!dateVal || !timeVal) {
+    return res.status(400).json({
+      success: false,
+      message: 'Укажите дату и время визита (visit_date + visit_time или visit_datetime)',
     });
   }
 
@@ -343,22 +363,26 @@ app.post('/api/visits', auth, requireAdmin, async (req, res) => {
       INSERT INTO visits (
         animal_id,
         visit_date,
+        visit_time,
+        visit_type,
         reason,
         diagnosis,
         treatment,
-        status,
+        symptoms,
         veterinarian_id
       )
-      VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'planned'), $7)
+      VALUES ($1, $2::date, $3::time, COALESCE($4, 'regular'), $5, $6, $7, $8, $9)
       RETURNING *
     `,
       [
         animal_id,
-        visit_date,
+        dateVal,
+        timeVal,
+        visit_type || 'regular',
         reason,
         diagnosis || null,
         treatment || null,
-        status || null,
+        symptoms || null,
         req.user.id,
       ],
     );
@@ -369,40 +393,58 @@ app.post('/api/visits', auth, requireAdmin, async (req, res) => {
       data: result.rows[0],
     });
   } catch (error) {
+    console.error('Create visit error:', error);
     res.status(500).json({ success: false, message: 'Не удалось создать визит', error: error.message });
   }
 });
 
-// Обновление визита
+// Обновление визита (visit_date, visit_time, visit_type, reason, diagnosis, treatment)
 app.put('/api/visits/:id', auth, requireAdmin, async (req, res) => {
   const {
     visit_date,
+    visit_time,
+    visit_datetime,
+    visit_type,
     reason,
     diagnosis,
     treatment,
-    status,
+    symptoms,
   } = req.body || {};
+
+  let dateVal = visit_date;
+  let timeVal = visit_time;
+  if (visit_datetime) {
+    const d = new Date(visit_datetime);
+    if (!isNaN(d.getTime())) {
+      dateVal = d.toISOString().slice(0, 10);
+      timeVal = d.toTimeString().slice(0, 8);
+    }
+  }
 
   try {
     const result = await db.query(
       `
       UPDATE visits
       SET
-        visit_date = COALESCE($1, visit_date),
-        reason = COALESCE($2, reason),
-        diagnosis = COALESCE($3, diagnosis),
-        treatment = COALESCE($4, treatment),
-        status = COALESCE($5, status),
+        visit_date = COALESCE($1::date, visit_date),
+        visit_time = COALESCE($2::time, visit_time),
+        visit_type = COALESCE($3, visit_type),
+        reason = COALESCE($4, reason),
+        diagnosis = COALESCE($5, diagnosis),
+        treatment = COALESCE($6, treatment),
+        symptoms = COALESCE($7, symptoms),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
+      WHERE id = $8
       RETURNING *
     `,
       [
-        visit_date || null,
+        dateVal || null,
+        timeVal || null,
+        visit_type || null,
         reason || null,
         diagnosis || null,
         treatment || null,
-        status || null,
+        symptoms || null,
         req.params.id,
       ],
     );
@@ -473,7 +515,8 @@ app.get('/api/calendar/visits', auth, async (req, res) => {
       SELECT 
         v.id,
         v.visit_date,
-        v.status,
+        v.visit_time,
+        v.visit_type AS status,
         v.reason,
         a.id AS animal_id,
         a.name AS animal_name,
@@ -502,9 +545,9 @@ app.get('/api/statistics/summary', auth, async (req, res) => {
       db.query('SELECT COUNT(*)::int AS total_animals FROM animals'),
       db.query('SELECT COUNT(*)::int AS total_visits FROM visits'),
       db.query(`
-        SELECT COALESCE(status, 'unknown') AS status, COUNT(*)::int AS count
+        SELECT COALESCE(visit_type, 'unknown') AS status, COUNT(*)::int AS count
         FROM visits
-        GROUP BY COALESCE(status, 'unknown')
+        GROUP BY COALESCE(visit_type, 'unknown')
       `),
       db.query(`
         SELECT COALESCE(species, 'unknown') AS species, COUNT(*)::int AS count

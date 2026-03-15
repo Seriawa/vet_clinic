@@ -40,7 +40,7 @@
                 {{ formatDate(visit.visit_date) }}
               </span>
               <span class="text-xs uppercase tracking-wide text-gray-600">
-                {{ visit.status || 'planned' }}
+                {{ visit.visit_type || 'regular' }}
               </span>
             </div>
             <div class="text-xs text-gray-500 mb-1 flex gap-1">
