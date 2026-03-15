@@ -15,8 +15,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // DB + модели + мидлвары
 const db = require('./config/database');
-const userModel = require('./models/userModel');
-const animalModel = require('./models/animalModel');
+const userModel = require('./models/usermodel');
+const animalModel = require('./models/animalmodel');
 const { auth, requireAdmin } = require('./middleware/auth');
 
 // Базовый маршрут для проверки
