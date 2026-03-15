@@ -527,8 +527,7 @@ app.get('/api/statistics/summary', auth, async (req, res) => {
   }
 });
 
-// старые тестовые /api/test/* можно оставить для отладки при необходимости
-// Запуск сервера
+
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📝 Test endpoints:`);
