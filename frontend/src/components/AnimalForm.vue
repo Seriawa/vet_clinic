@@ -19,12 +19,18 @@
               <label class="block text-sm font-medium text-gray-700">Вид *</label>
               <select v-model="form.species" required class="input-field">
                 <option value="">Выберите вид</option>
-                <option value="dog">Собака</option>
-                <option value="cat">Кошка</option>
-                <option value="bird">Птица</option>
-                <option value="rabbit">Кролик</option>
-                <option value="hamster">Хомяк</option>
-                <option value="other">Другое</option>
+                <option v-for="opt in speciesOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Статус питомца</label>
+              <select v-model="form.status" class="input-field">
+                <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
               </select>
             </div>
             
@@ -126,12 +132,16 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAnimalsStore } from '../stores/animalsStore'
+import { SPECIES_OPTIONS, STATUS_OPTIONS } from '../utils/animalLabels'
 
 const router = useRouter()
 const route = useRoute()
 const animalsStore = useAnimalsStore()
 
 const isEditing = computed(() => route.params.id && route.params.id !== 'new')
+
+const speciesOptions = SPECIES_OPTIONS
+const statusOptions = STATUS_OPTIONS
 
 const form = ref({
   name: '',

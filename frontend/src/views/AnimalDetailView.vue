@@ -15,14 +15,14 @@
         <div class="flex justify-between items-center mb-4">
           <div class="flex items-center gap-4">
             <div class="w-18 h-18 rounded-full bg-blue-100 flex items-center justify-center text-3xl">
-              <span>{{ getAnimalEmoji(animal.species) }}</span>
+              <span>{{ getSpeciesEmoji(animal.species) }}</span>
             </div>
             <div>
               <h1 class="m-0 text-2xl font-bold text-gray-900">
                 {{ animal.name }}
               </h1>
               <p class="mt-1 text-sm text-gray-600">
-                {{ animal.species }} • {{ animal.breed || 'Порода не указана' }}
+                {{ getSpeciesName(animal.species) }} • {{ animal.breed || 'Порода не указана' }}
               </p>
             </div>
           </div>
@@ -362,6 +362,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/userStore'
 import { useAnimalsStore } from '../stores/animalsStore'
 import { useVisitsStore } from '../stores/visitsStore'
+import { getSpeciesName, getStatusText, getSpeciesEmoji } from '../utils/animalLabels'
 
 const route = useRoute()
 const router = useRouter()
@@ -402,31 +403,6 @@ const statusClasses = computed(() => {
   }
   return classes[animal.value.status] || classes.active
 })
-
-const getAnimalEmoji = (species) => {
-  const emojis = {
-    dog: '🐕',
-    cat: '🐈',
-    bird: '🐦',
-    rabbit: '🐇',
-    hamster: '🐹',
-    fish: '🐠',
-    reptile: '🦎'
-  }
-  return emojis[species?.toLowerCase()] || '🐾'
-}
-
-const getStatusText = (status) => {
-  const texts = {
-    active: 'Активен',
-    treatment: 'На лечении',
-    healthy: 'Здоров',
-    observation: 'Наблюдение',
-    critical: 'Критическое',
-    inactive: 'Неактивен'
-  }
-  return texts[status] || status
-}
 
 const getGenderText = (gender) => {
   const texts = {

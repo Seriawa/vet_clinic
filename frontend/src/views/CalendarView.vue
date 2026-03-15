@@ -70,7 +70,7 @@
             </div>
             <div class="text-xs text-gray-500 mt-1 flex gap-1">
               <span>{{ item.animal_name || 'Без животного' }}</span>
-              <span v-if="item.animal_species">• {{ item.animal_species }}</span>
+              <span v-if="item.animal_species">• {{ getSpeciesName(item.animal_species) }}</span>
             </div>
             <p class="text-sm text-gray-700 mt-1">
               {{ item.reason }}
@@ -85,6 +85,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useCalendarStore } from '../stores/calendarStore'
+import { getSpeciesName } from '../utils/animalLabels'
 
 const calendarStore = useCalendarStore()
 

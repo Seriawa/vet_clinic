@@ -74,7 +74,7 @@
               :key="item.species"
               class="flex justify-between rounded-xl bg-gray-50 px-3 py-2 text-sm"
             >
-              <span class="text-gray-700">{{ item.species }}</span>
+              <span class="text-gray-700">{{ getSpeciesName(item.species) }}</span>
               <span class="font-medium text-gray-900">{{ item.count }}</span>
             </li>
           </ul>
@@ -87,6 +87,7 @@
 <script setup>
 import { onMounted } from 'vue'
 import { useStatisticsStore } from '../stores/statisticsStore'
+import { getSpeciesName } from '../utils/animalLabels'
 
 const statisticsStore = useStatisticsStore()
 

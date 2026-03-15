@@ -33,16 +33,16 @@
       <div class="flex gap-4 mb-8 ml-24">
         <select v-model="filters.species" class="bg-[#428B94] rounded-2xl px-4 py-2 text-[18px] text-[#0E1E20] min-w-[180px] border-none shadow-[0_8px_0_rgba(0,0,0,0.1)]">
           <option value="">Все виды</option>
-          <option value="dog">🐕 Собаки</option>
-          <option value="cat">🐈 Кошки</option>
-          <option value="bird">🐦 Птицы</option>
+          <option v-for="opt in speciesOptions" :key="opt.value" :value="opt.value">
+            {{ getSpeciesEmoji(opt.value) }} {{ opt.label }}
+          </option>
         </select>
         
         <select v-model="filters.status" class="bg-[#428B94] rounded-2xl px-4 py-2 text-[18px] text-[#0E1E20] min-w-[180px] border-none shadow-[0_8px_0_rgba(0,0,0,0.1)]">
           <option value="">Все статусы</option>
-          <option value="active">✅ Активные</option>
-          <option value="treatment">⚠️ На лечении</option>
-          <option value="healthy">💚 Здоровые</option>
+          <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
         </select>
         
         <button @click="resetFilters" class="bg-[#428B94] rounded-2xl px-6 py-2 text-[18px] font-semibold text-[#0E1E20] border-none shadow-[0_8px_0_rgba(0,0,0,0.1)]">
@@ -64,10 +64,10 @@
           >
             <div class="flex items-center gap-6">
               <div class="w-12 h-12 flex items-center justify-center text-[32px]">
-                {{ getAnimalEmoji(animal.species) }}
+                {{ getSpeciesEmoji(animal.species) }}
               </div>
               <span class="text-[32px] font-semibold text-[#0E1E20]">{{ animal.name }}</span>
-              <span class="text-[20px] text-[#0E1E20]/70">{{ animal.species }}</span>
+              <span class="text-[20px] text-[#0E1E20]/70">{{ getSpeciesName(animal.species) }}</span>
             </div>
             
             <div class="flex items-center gap-4">
@@ -119,10 +119,14 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/userStore'
 import { useAnimalsStore } from '../stores/animalsStore'
+import { SPECIES_OPTIONS, STATUS_OPTIONS, getSpeciesName, getStatusText, getSpeciesEmoji } from '../utils/animalLabels'
 
 const router = useRouter()
 const userStore = useUserStore()
 const animalsStore = useAnimalsStore()
+
+const speciesOptions = SPECIES_OPTIONS
+const statusOptions = STATUS_OPTIONS
 
 onMounted(() => {
   animalsStore.fetchAnimals()
@@ -152,37 +156,16 @@ const filteredAnimals = computed(() => {
 
 const getStatusCardClass = (status) => {
   switch(status) {
-    case 'error': return 'error'
-    case 'treatment': return 'error'
-    case 'success': return 'success'
-    case 'active': return 'success'
+    case 'error':
+    case 'treatment':
+    case 'critical': return 'error'
+    case 'success':
+    case 'active':
     case 'healthy': return 'success'
+    case 'observation': return 'error'
+    case 'inactive': return ''
     default: return ''
   }
-}
-
-const getAnimalEmoji = (species) => {
-  const emojis = {
-    dog: '🐕',
-    cat: '🐈',
-    bird: '🐦',
-    rabbit: '🐇',
-    hamster: '🐹',
-    fish: '🐠',
-    reptile: '🦎'
-  }
-  return emojis[species?.toLowerCase()] || '🐾'
-}
-
-const getStatusText = (status) => {
-  const texts = {
-    active: '✅',
-    treatment: '⚠️',
-    healthy: '💚',
-    error: '❌',
-    success: '✓'
-  }
-  return texts[status] || status
 }
 
 const toggleSelectAll = () => {

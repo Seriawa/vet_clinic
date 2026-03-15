@@ -8,7 +8,7 @@
           <div class="relative">
             <div class="absolute inset-0 bg-gradient-to-r from-primary-600 to-primary-400 rounded-full blur-lg opacity-0 group-hover:opacity-50 transition-opacity duration-300"></div>
             <div class="relative w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 rounded-full flex items-center justify-center transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-300">
-              <span class="text-3xl filter drop-shadow-lg">{{ getAnimalEmoji(animal.species) }}</span>
+              <span class="text-3xl filter drop-shadow-lg">{{ getSpeciesEmoji(animal.species) }}</span>
             </div>
           </div>
           <div>
@@ -101,6 +101,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useUserStore } from '../stores/userStore'
+import { getSpeciesName, getStatusText, getSpeciesEmoji } from '../utils/animalLabels'
 
 const props = defineProps({
   animal: {
@@ -137,42 +138,4 @@ const statusColor = computed(() => {
   }
   return colors[props.animal.status] || colors.active
 })
-
-const getAnimalEmoji = (species) => {
-  const emojis = {
-    dog: '🐕',
-    cat: '🐈',
-    bird: '🐦',
-    rabbit: '🐇',
-    hamster: '🐹',
-    fish: '🐠',
-    reptile: '🦎'
-  }
-  return emojis[species?.toLowerCase()] || '🐾'
-}
-
-const getSpeciesName = (species) => {
-  const names = {
-    dog: 'Собака',
-    cat: 'Кошка',
-    bird: 'Птица',
-    rabbit: 'Кролик',
-    hamster: 'Хомяк',
-    fish: 'Рыбка',
-    reptile: 'Рептилия'
-  }
-  return names[species?.toLowerCase()] || species
-}
-
-const getStatusText = (status) => {
-  const texts = {
-    active: 'Активен',
-    treatment: 'На лечении',
-    healthy: 'Здоров',
-    observation: 'Наблюдение',
-    critical: 'Критическое',
-    inactive: 'Неактивен'
-  }
-  return texts[status] || status
-}
 </script>
