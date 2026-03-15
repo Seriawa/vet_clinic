@@ -169,7 +169,8 @@
           </h2>
           <button
             v-if="userStore.canEdit"
-            class="border-none bg-transparent text-sm font-medium text-blue-600 cursor-pointer"
+            class="border-none bg-transparent text-sm font-medium text-blue-600 cursor-pointer hover:underline"
+            @click="openAddVisitModal"
           >
             + Добавить визит
           </button>
@@ -262,6 +263,87 @@
         </div>
       </div>
     </div>
+
+    <!-- Модальное окно: добавить визит -->
+    <div
+      v-if="showAddVisitModal"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      @click.self="showAddVisitModal = false"
+    >
+      <div class="bg-white rounded-2xl px-6 py-6 max-w-md w-full box-border">
+        <h3 class="m-0 mb-4 text-lg font-semibold text-gray-900">
+          Новый визит
+        </h3>
+        <form class="space-y-3" @submit.prevent="submitNewVisit">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Дата и время *</label>
+            <input
+              v-model="newVisit.visit_date"
+              type="datetime-local"
+              required
+              class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Причина визита *</label>
+            <input
+              v-model="newVisit.reason"
+              type="text"
+              required
+              placeholder="Например: прививка, осмотр"
+              class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Диагноз</label>
+            <input
+              v-model="newVisit.diagnosis"
+              type="text"
+              placeholder="Не обязательно"
+              class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Лечение</label>
+            <input
+              v-model="newVisit.treatment"
+              type="text"
+              placeholder="Не обязательно"
+              class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+            >
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Статус</label>
+            <select
+              v-model="newVisit.status"
+              class="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="planned">Запланирован</option>
+              <option value="done">Завершён</option>
+              <option value="cancelled">Отменён</option>
+            </select>
+          </div>
+          <div v-if="visitsStore.error" class="text-sm text-red-600">
+            {{ visitsStore.error }}
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              class="rounded-full px-4 py-2 text-sm font-medium bg-gray-200 text-gray-900 border-none cursor-pointer"
+              @click="showAddVisitModal = false"
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              class="rounded-full px-4 py-2 text-sm font-medium bg-blue-500 text-white border-none cursor-pointer"
+            >
+              Сохранить
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -270,14 +352,24 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/userStore'
 import { useAnimalsStore } from '../stores/animalsStore'
+import { useVisitsStore } from '../stores/visitsStore'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const animalsStore = useAnimalsStore()
+const visitsStore = useVisitsStore()
 
 const animal = ref(null)
 const showDeleteModal = ref(false)
+const showAddVisitModal = ref(false)
+const newVisit = ref({
+  visit_date: '',
+  reason: '',
+  diagnosis: '',
+  treatment: '',
+  status: 'planned'
+})
 
 onMounted(async () => {
   const id = parseInt(route.params.id)
@@ -350,6 +442,37 @@ const confirmDelete = async () => {
     if (ok) {
       router.push('/')
     }
+  }
+}
+
+const openAddVisitModal = () => {
+  visitsStore.error = ''
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  newVisit.value.visit_date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+  newVisit.value.reason = ''
+  newVisit.value.diagnosis = ''
+  newVisit.value.treatment = ''
+  newVisit.value.status = 'planned'
+  showAddVisitModal.value = true
+}
+
+const submitNewVisit = async () => {
+  if (!animal.value) return
+  const payload = {
+    animal_id: animal.value.id,
+    visit_date: new Date(newVisit.value.visit_date).toISOString(),
+    reason: newVisit.value.reason.trim(),
+    diagnosis: newVisit.value.diagnosis?.trim() || null,
+    treatment: newVisit.value.treatment?.trim() || null,
+    status: newVisit.value.status || 'planned'
+  }
+  const created = await visitsStore.addVisit(payload)
+  if (created) {
+    showAddVisitModal.value = false
+    newVisit.value = { visit_date: '', reason: '', diagnosis: '', treatment: '', status: 'planned' }
+    const updated = await animalsStore.fetchAnimalById(animal.value.id)
+    if (updated) animal.value = updated
   }
 }
 </script>

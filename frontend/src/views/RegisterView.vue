@@ -90,17 +90,18 @@ const form = ref({
 
 const error = ref('')
 
-const handleRegister = () => {
+const handleRegister = async () => {
   if (form.value.password !== form.value.confirmPassword) {
     error.value = 'Пароли не совпадают'
     return
   }
-  
-  const success = userStore.register({
+
+  const success = await userStore.register({
     name: form.value.name,
-    email: form.value.email
+    email: form.value.email,
+    password: form.value.password
   })
-  
+
   if (success) {
     router.push('/')
   }

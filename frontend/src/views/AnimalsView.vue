@@ -51,23 +51,6 @@
       </div>
 
       <div class="ml-24 max-w-3xl">
-        <div class="flex items-center gap-6 mb-3">
-          <div class="w-12 h-12"></div>
-          <div class="flex items-center gap-4">
-            <div 
-              class="w-12 h-12 border-2 border-[#0E1E20] rounded-xl bg-transparent flex items-center justify-center cursor-pointer"
-              :class="selectAll ? 'bg-[#0E1E20] relative' : ''"
-              @click="toggleSelectAll"
-            >
-              <span 
-                v-if="selectAll" 
-                class="w-3 h-6 border-r-2 border-b-2 border-white rotate-45 -translate-y-[2px]"
-              />
-            </div>
-            <span class="text-2xl font-semibold text-[#0E1E20]">Выбрать все</span>
-          </div>
-        </div>
-
         <div v-if="filteredAnimals.length > 0" class="flex flex-col gap-4">
           <div
             v-for="animal in filteredAnimals"
@@ -111,15 +94,6 @@
         <div v-else class="bg-[#428B94] rounded-2xl px-6 py-6 flex items-center justify-center text-[24px] text-[#0E1E20] shadow-[0_8px_0_rgba(0,0,0,0.1)]">
           Нет животных для отображения
         </div>
-      </div>
-
-      <div class="absolute right-[-100px] bottom-[100px] opacity-30 -rotate-12 pointer-events-none">
-        <svg width="300" height="300" viewBox="0 0 100 100" fill="#428B94">
-          <path d="M30 50 L40 40 L60 40 L70 50 L60 70 L40 70 L30 50" fill="#428B94"/>
-          <circle cx="45" cy="50" r="3" fill="white"/>
-          <circle cx="55" cy="50" r="3" fill="white"/>
-          <path d="M35 60 L45 60 M55 60 L65 60" stroke="white" stroke-width="2"/>
-        </svg>
       </div>
     </div>
 
